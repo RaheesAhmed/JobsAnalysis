@@ -1,0 +1,8 @@
+streamlit
+openai
+pymupdf
+python-dotenv
+apify-client
+requests
+mcp
+fastmcp
