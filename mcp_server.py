@@ -140,8 +140,18 @@ def system_prompt() -> str:
         return file.read()
 
 
+
+
 if __name__ == "__main__":
-    mcp.run(transport='stdio')
+    import os
+    
+    print(f"🚀 Starting MCP Server")
+    print(f"📡 Available tools: analyze_resume, analyze_resume_from_file, fetch_jobs")
+    print(f"⚠️  Keep this terminal running!")
+    
+    # Run MCP server with HTTP transport
+    # Port and host are controlled by environment variables or defaults
+    mcp.run(transport="sse")
 
 
 

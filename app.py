@@ -1,6 +1,10 @@
 import streamlit as st
+from datetime import datetime
 from src.helper import extract_text_from_pdf, ask_openai
-from src.job_api import fetch_rapidapi_jobs  
+from src.job_api import fetch_rapidapi_jobs
+from src.pdf_generator import generate_analysis_pdf
+from src.improvement_suggestions import get_improvement_suggestions, get_formatted_issues_html, get_formatted_improvements_html
+from src.analytics_manager import save_analysis  
 
 
 
@@ -428,6 +432,44 @@ if uploaded_file:
     # Success message
     st.markdown('<div class="success-banner">✅ Analysis Completed Successfully!</div>', unsafe_allow_html=True)
     
+    # Before/After Improvement Suggestions
+    st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">💡 Resume Improvement Suggestions</h2>', unsafe_allow_html=True)
+    
+    if st.button("🔍 Get Improvement Suggestions"):
+        with st.spinner("🤖 Analyzing improvement areas..."):
+            improvements = get_improvement_suggestions(resume_text)
+            st.session_state.improvements = improvements
+    
+    if 'improvements' in st.session_state:
+        st.markdown(get_formatted_issues_html(st.session_state.improvements['current_issues']), unsafe_allow_html=True)
+        st.markdown(get_formatted_improvements_html(st.session_state.improvements['suggested_improvements']), unsafe_allow_html=True)
+    
+    # PDF Export
+    st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
+    st.markdown('<h2 class="section-header">📥 Export Analysis</h2>', unsafe_allow_html=True)
+    
+    # Generate PDF
+    pdf_buffer = generate_analysis_pdf(
+        summary=summary,
+        ats_score=ats_score,
+        ats_analysis=ats_analysis,
+        gaps=gaps,
+        roadmap=roadmap,
+        keywords=st.session_state.get('keywords_extracted', ''),
+        jobs=st.session_state.get('jobs_list', []),
+        improvements=st.session_state.get('improvements', None)
+    )
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    st.download_button(
+        label="📥 Download Analysis as PDF",
+        data=pdf_buffer,
+        file_name=f"resume_analysis_{timestamp}.pdf",
+        mime="application/pdf",
+        use_container_width=True
+    )
+    
     st.markdown('<hr class="custom-divider">', unsafe_allow_html=True)
     
     # Job recommendations button
@@ -438,6 +480,7 @@ if uploaded_file:
                 max_tokens=100
             )
             search_keywords_clean = keywords.replace("\n", "").strip()
+            st.session_state.keywords_extracted = search_keywords_clean
         
         # Display extracted keywords
         st.markdown(f'<div class="keywords-box">🎯 Extracted Job Keywords: {search_keywords_clean}</div>', unsafe_allow_html=True)
@@ -448,6 +491,22 @@ if uploaded_file:
             # In your app.py, when calling the functions:
             #linkedin_jobs = fetch_linkedin_jobs(search_keywords_clean, location="Saudi Arabia", rows=10)
             rapidapi_jobs = fetch_rapidapi_jobs(search_keywords_clean, location="Saudi Arabia", rows=10)
+            st.session_state.jobs_list = rapidapi_jobs
+            
+            # Save to analytics
+            # Extract skill gaps from the gaps text
+            gap_lines = [line.strip('- •').strip() for line in gaps.split('\n') if line.strip().startswith(('-', '•'))]
+            keyword_list = search_keywords_clean.split(',')[:10]
+            
+            try:
+                save_analysis(
+                    ats_score=int(ats_score) if ats_score and str(ats_score).isdigit() else 0,
+                    skill_gaps=gap_lines[:10],
+                    keywords=keyword_list,
+                    job_count=len(rapidapi_jobs)
+                )
+            except Exception as e:
+                print(f"Error saving analytics: {e}")
 
         
         # Display LinkedIn Jobs
